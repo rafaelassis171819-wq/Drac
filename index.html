@@ -184,7 +184,7 @@ const m=speechSynthesis.getVoices().filter(v=>/^pt/i.test(v.lang)).find(v=>isM(v
 if(m){$('voice').value=m.name;ss('voice',m.name);st('Voz masculina: '+m.name)}else st('Seu aparelho só tem voz neutra ou feminina em português. Ajustei o grave. Para ter mais vozes, instale em Configurações do Android, Texto para fala.');
 speak('Olá, eu sou o Drac.')};
 if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
-function speak(txt){if(!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';const v=speechSynthesis.getVoices().find(x=>x.name===$('voice').value);if(v)u.voice=v;u.pitch=+$('pitch').value;u.rate=+$('rate').value;const id=++spkId;spk=true;u.onstart=()=>talk(true,Math.max(2500,txt.length*95));u.onend=u.onerror=()=>{talk(false);if(id===spkId){spk=false;busy=false;listen()}};speechSynthesis.speak(u)}
+function speak(txt){if(!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';const v=speechSynthesis.getVoices().find(x=>x.name===$('voice').value);if(v)u.voice=v;u.pitch=+$('pitch').value;u.rate=+$('rate').value;const id=++spkId;spk=true;let done=false;const fin=()=>{if(done)return;done=true;clearTimeout(wd);talk(false);if(id===spkId){spk=false;busy=false;listen()}};const wd=setTimeout(fin,Math.max(8000,txt.length*120)+3000);u.onstart=()=>talk(true,Math.max(2500,txt.length*95));u.onend=u.onerror=fin;speechSynthesis.speak(u)}
 const EM=Object.keys(E).join(', ');
 async function ask(txt,lk){
 if(!txt.trim())return;if(/(deslig|desativ|fech|apag)\w*\s.*(c[âa]mera|olhos)/i.test(txt)){if(stream)camOff();else st('Os olhos já estão desligados.');return}const key=$('key').value.trim();if(!key){st('Cole a chave do Gemini em Configurações.');$('cfg').open=true;return}
@@ -208,7 +208,7 @@ rc.onstart=()=>{setEmotion('ouvindo');st('Ouvindo... (toque no 🎤 para encerra
 rc.onresult=e=>{got=true;busy=true;const t=e.results[0][0].transcript;st('Você: '+t);ask(t).then(()=>{if(call&&!spk){busy=false;listen()}})};
 rc.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){endCall();st('Microfone: permissão negada.')}};
 rc.onend=()=>{if(call&&!got&&!busy&&!spk)setTimeout(listen,250)};
-try{rc.start()}catch(e){}}
+try{rc.start()}catch(e){setTimeout(listen,600)}}
 function startCall(){if(!SR){st('Sem reconhecimento de voz aqui. Use o Chrome.');return}
 if(!$('key').value.trim()){st('Cole a chave do Gemini em Configurações.');$('cfg').open=true;return}
 call=true;busy=false;spk=false;spkId++;if('speechSynthesis' in window)speechSynthesis.cancel();
