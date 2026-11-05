@@ -40,13 +40,19 @@ body.fs{overflow:hidden;padding:0;max-width:none;background:#02060a}
 .fs .fb{display:block}
 .fs #sub{display:block;position:fixed;left:0;right:0;bottom:calc(88px + env(safe-area-inset-bottom,0px));text-align:center;color:#bdeeff;padding:0 24px;z-index:9;font-size:15px;pointer-events:none}
 #fcam{bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;margin-left:-104px}
+#fcamx{bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;margin-left:-172px}
+.noc{display:none!important}
+#cf{position:fixed;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));width:100px;height:132px;z-index:8;border-radius:16px;overflow:hidden;border:2px solid rgba(70,235,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.5);background:#000;touch-action:none}
+#cf video{width:100%;height:100%;object-fit:cover;display:block}
+#cf button{position:absolute;top:4px;right:4px;width:24px;height:24px;padding:0;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:12px}
+.fs #cf{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px));left:12px;right:auto;width:132px;height:100px}
 </style>
 </head>
 <body>
 <div class="bezel" id="bz"><canvas id="cv"></canvas></div>
-<button class="fb" id="fcam">👁️</button><button class="fb" id="fmic">🎤</button><button class="fb" id="fx">✕</button><div id="sub"></div>
-<video id="vid" playsinline muted style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
-<div class="say"><input id="txt" placeholder="Fale com o Drac"><button id="mic">🎤</button><button id="send">Enviar</button><button id="cam" title="Olhos (câmera)">👁️</button><button id="fsb" title="Tela cheia">⛶</button></div>
+<button class="fb" id="fcam">👁️</button><button class="fb noc" id="fcamx">🚫</button><button class="fb" id="fmic">🎤</button><button class="fb" id="fx">✕</button><div id="sub"></div>
+<div id="cf" class="noc"><video id="vid" playsinline muted></video><button id="cfx" title="Desligar câmera">✕</button></div>
+<div class="say"><input id="txt" placeholder="Fale com o Drac"><button id="mic">🎤</button><button id="send">Enviar</button><button id="cam" title="Olhos (câmera)">👁️</button><button id="camx" class="noc" title="Desligar câmera">🚫</button><button id="fsb" title="Tela cheia">⛶</button></div>
 <div id="st">Abra as configurações e cole sua chave do Gemini.</div>
 <details id="cfg"><summary>⚙️ Configurações</summary>
 <label>Chave do Gemini (grátis, fica só neste celular)</label><input id="key" type="password" autocomplete="off" placeholder="Cole a chave aqui">
@@ -180,7 +186,7 @@ if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loa
 function speak(txt){if(!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';const v=speechSynthesis.getVoices().find(x=>x.name===$('voice').value);if(v)u.voice=v;u.pitch=+$('pitch').value;u.rate=+$('rate').value;u.onstart=()=>talk(true,Math.max(2500,txt.length*95));u.onend=u.onerror=()=>talk(false);speechSynthesis.speak(u)}
 const EM=Object.keys(E).join(', ');
 async function ask(txt,lk){
-if(!txt.trim())return;const key=$('key').value.trim();if(!key){st('Cole a chave do Gemini em Configurações.');$('cfg').open=true;return}
+if(!txt.trim())return;if(/(deslig|desativ|fech|apag)\w*\s.*(c[âa]mera|olhos)/i.test(txt)){if(stream)camOff();else st('Os olhos já estão desligados.');return}const key=$('key').value.trim();if(!key){st('Cole a chave do Gemini em Configurações.');$('cfg').open=true;return}
 stopAuto();const img=(stream&&(lk||LOOK.test(txt)))?snap():null;if(img)camTouch();hist.push({role:'user',parts:[{text:txt}]});hist=hist.slice(-12);setEmotion(img?'focado':'pensando');st(img?'Olhando...':'Pensando...');
 const sys=$('pers').value+' Responda sempre em português do Brasil, em no máximo 2 frases curtas, sem emojis e sem markdown. Comece SEMPRE com uma tag de emoção entre colchetes, escolhida entre: '+EM+'. Exemplo: [feliz] Oi, tudo bem?'+(img?' Você está enxergando pela câmera do celular: descreva o que vê de forma curta e natural, como se fossem os seus olhos, e dê dicas se fizer sentido.':'');
 try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent($('model').value.trim())+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({systemInstruction:{parts:[{text:sys}]},contents:hist.map((m,i)=>i===hist.length-1&&img?{role:m.role,parts:[{inline_data:{mime_type:'image/jpeg',data:img}},...m.parts]}:m),generationConfig:{maxOutputTokens:200}})});
@@ -202,24 +208,30 @@ rc.onresult=e=>{const t=e.results[0][0].transcript;st('Você: '+t);ask(t)};
 rc.onerror=e=>{setEmotion('neutro');st('Microfone: '+e.error)};rc.start()};
 const LOOK=/olha|olhe|veja|vendo|você vê|voce ve|o que é isso|o que e isso|enxerg/i;let stream=null,camT=0;
 $('camf').value=gs('camf')||'environment';
-function camOff(){if(!stream)return;stream.getTracks().forEach(t=>t.stop());stream=null;$('vid').srcObject=null;$('cam').classList.remove('on');st('Olhos desligados.')}
+function camOff(){if(!stream)return;stream.getTracks().forEach(t=>t.stop());stream=null;$('vid').srcObject=null;$('cam').classList.remove('on');$('camx').classList.add('noc');$('fcamx').classList.add('noc');$('cf').classList.add('noc');st('Olhos desligados.')}
 function camTouch(){clearTimeout(camT);camT=setTimeout(camOff,60000)}
 $('camf').onchange=()=>{ss('camf',$('camf').value);camOff()};
-async function camOn(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:$('camf').value,width:{ideal:640}},audio:false});$('vid').srcObject=stream;await $('vid').play();$('cam').classList.add('on');camTouch();return true}catch(e){stream=null;st('Câmera: '+(e.name==='NotAllowedError'?'permissão negada. Libere a câmera nas configurações do site.':e.message));return false}}
+async function camOn(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:$('camf').value,width:{ideal:640}},audio:false});$('vid').srcObject=stream;$('vid').style.transform=$('camf').value==='user'?'scaleX(-1)':'';$('cf').classList.remove('noc');await $('vid').play();$('cam').classList.add('on');$('camx').classList.remove('noc');$('fcamx').classList.remove('noc');camTouch();return true}catch(e){stream=null;$('cf').classList.add('noc');st('Câmera: '+(e.name==='NotAllowedError'?'permissão negada. Libere a câmera nas configurações do site.':e.message));return false}}
 function snap(){const v=$('vid');if(!v.videoWidth)return null;const c=document.createElement('canvas');c.width=Math.min(640,v.videoWidth);c.height=Math.round(c.width*v.videoHeight/v.videoWidth);c.getContext('2d').drawImage(v,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.7).split(',')[1]}
 async function olhar(){if(!stream){if(!await camOn())return;await new Promise(r=>setTimeout(r,800))}const t=$('txt').value.trim();$('txt').value='';ask(t||'O que você está vendo? Comente de forma curta.',true)}
-$('cam').onclick=olhar;$('fcam').onclick=()=>{olhar();showFb()};
+$('cam').onclick=olhar;$('camx').onclick=camOff;$('fcamx').onclick=()=>{camOff();showFb()};$('fcam').onclick=()=>{olhar();showFb()};
 document.addEventListener('visibilitychange',()=>{if(document.hidden)camOff()});
+function resetCf(){const f=$('cf');f.style.left=f.style.top=f.style.right=f.style.bottom=''}
+$('cfx').onclick=camOff;
+(()=>{const f=$('cf');let d=null;
+f.addEventListener('pointerdown',e=>{if(e.target.id==='cfx')return;const r=f.getBoundingClientRect();d={x:e.clientX-r.left,y:e.clientY-r.top};f.setPointerCapture(e.pointerId)});
+f.addEventListener('pointermove',e=>{if(!d)return;f.style.left=Math.max(0,Math.min(innerWidth-f.offsetWidth,e.clientX-d.x))+'px';f.style.top=Math.max(0,Math.min(innerHeight-f.offsetHeight,e.clientY-d.y))+'px';f.style.right=f.style.bottom='auto'});
+f.addEventListener('pointerup',()=>{d=null})})();
 let fbT=0;
 function showFb(){document.querySelectorAll('.fb').forEach(b=>b.classList.remove('hide'));clearTimeout(fbT);fbT=setTimeout(()=>document.querySelectorAll('.fb').forEach(b=>b.classList.add('hide')),3500)}
 function fsOn(){document.body.classList.add('fs');
 try{const e=document.documentElement,p=(e.requestFullscreen||e.webkitRequestFullscreen).call(e);if(p&&p.catch)p.catch(()=>{})}catch(x){}
 try{screen.orientation.lock('landscape').catch(()=>{})}catch(x){}
-resize();showFb()}
+resetCf();resize();showFb()}
 function fsOff(){document.body.classList.remove('fs');
 try{if(document.fullscreenElement)document.exitFullscreen()}catch(x){}
 try{screen.orientation.unlock()}catch(x){}
-resize()}
+resetCf();resize()}
 $('fsb').onclick=fsOn;$('fx').onclick=fsOff;$('fmic').onclick=()=>{$('mic').click();showFb()};
 $('bz').addEventListener('click',()=>{if(document.body.classList.contains('fs'))showFb()});
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.body.classList.contains('fs'))fsOff()});
