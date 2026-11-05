@@ -66,6 +66,16 @@ body.fs{overflow:hidden;padding:0;max-width:none;background:#02060a}
 <label>Câmera dos olhos (só envia imagem quando você pedir para ele olhar)</label><select id="camf"><option value="environment">Traseira</option><option value="user">Frontal</option></select>
 <div class="row"><button id="vt">🔊 Testar voz</button><button id="clr">Limpar conversa</button></div>
 </details>
+<details id="pers-sec"><summary>🎨 Personalização</summary>
+<label>Cor dos olhos</label><input id="pc" type="color" value="#46ebff">
+<label>Tamanho: <span id="psv"></span></label><input id="psz" type="range" min=".6" max="1.4" step=".05" value="1">
+<label>Brilho: <span id="pgv"></span></label><input id="pgl" type="range" min="0" max="50" step="1" value="26">
+<label>Cor do fundo</label><input id="pbg" type="color" value="#02060a">
+<div class="row"><button id="prst">Restaurar padrão</button></div>
+<label>Saves (máximo 3). Digite um nome e toque em um slot vazio para salvar.</label>
+<input id="sname" placeholder="Nome do save (opcional)">
+<div class="row" id="slots"></div>
+</details>
 <details><summary>🎭 Testar emoções</summary><div class="row" id="ctl"></div><div class="row" id="chips"></div></details>
 <script>
 const W=320,H=240,cv=document.getElementById('cv'),ctx=cv.getContext('2d'),off=document.createElement('canvas'),oc=off.getContext('2d');
@@ -76,6 +86,7 @@ if(document.body.classList.contains('fs')){cv.width=Math.round(window.innerWidth
 else{const w=cv.clientWidth;cv.width=Math.round(w*d);cv.height=Math.round(w*d*H/W);k=cv.width/W;OX=OY=0}
 off.width=off.height=Math.round(220*k)}
 const B={w:64,h:74,r:24,ox:0,oy:0,rot:0,top:0,slant:0,bot:0,sc:1},KE=Object.keys(B);
+let BASE=[70,235,255];const P={size:1,glow:26,bg:'#02060a'};
 const CY=[70,235,255],PK=[255,100,150],RD=[255,95,70],BL=[100,175,255],PU=[175,135,255],GN=[110,255,200],GR=[205,210,225];
 const mir=o=>{const r={};for(const q in o)r[q]=(q==='ox'||q==='rot')?-o[q]:o[q];return r};
 const E={
@@ -113,7 +124,7 @@ let em=E.neutro,cur='neutro',shape='eye',fx=new Set(),FA={},talkOn=false,be=null
 const bl={L:0,R:0};
 function newGaze(){if(em.gaze){T.gx=em.gaze[0];T.gy=em.gaze[1];return}const g=em.ga??1;if(Math.random()<.3){T.gx=0;T.gy=0}else{T.gx=(Math.random()*2-1)*20*g;T.gy=(Math.random()*2-1)*10*g}}
 function setEmotion(n){const e=E[n];if(!e)return;em=e;cur=n;
-T.L={...B,...e.L};T.R={...B,...(e.R||mir(e.L))};T.c=[...(e.col||CY)];T.blush=e.blush||0;
+T.L={...B,...e.L};T.R={...B,...(e.R||mir(e.L))};T.c=[...(e.col||BASE)];T.blush=e.blush||0;
 const sh=e.shape||'eye';const p=sh!==shape?.2:.88;shape=sh;S.L.sc=S.R.sc=p;
 fx=new Set(e.fx||[]);talkOn=!!e.talk;newGaze();
 document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on',b.dataset.n===n));
@@ -131,7 +142,7 @@ for(let i=0;i<3;i++){let v=V.c[i];v+=(90*(T.c[i]-S.c[i])-18.9*v)*dt;S.c[i]+=v*dt
 for(const q of['gx','gy','blush']){let v=V[q];v+=(140*(T[q]-S[q])-2*Math.sqrt(140)*.75*v)*dt;S[q]+=v*dt;V[q]=v}}
 function rr(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 function drawEye(s,bob,shx,tm){const e=S[s],d=s==='L'?1:-1,b=bl[s],sc=Math.max(.02,e.sc);
-const w=Math.max(4,e.w*sc*(1+.05*b)),h=Math.max(3,e.h*sc*(1-.93*b)*tm),r=Math.max(1,e.r);
+const w=Math.max(4,e.w*sc*P.size*(1+.05*b)),h=Math.max(3,e.h*sc*P.size*(1-.93*b)*tm),r=Math.max(1,e.r);
 const rgb=S.c.map(v=>Math.max(0,Math.min(255,Math.round(v)))).join(',');
 oc.setTransform(k,0,0,k,0,0);oc.clearRect(0,0,220,220);oc.save();oc.translate(110,110);oc.globalCompositeOperation='source-over';oc.fillStyle=oc.strokeStyle='rgb('+rgb+')';
 if(shape==='eye'){rr(oc,-w/2,-h/2,w,h,r);oc.fill();oc.globalCompositeOperation='destination-out';oc.fillStyle='#000';
@@ -141,13 +152,13 @@ else if(shape==='heart'){const q=Math.min(w,h)*.55*(1+.07*Math.sin(t*7));oc.begi
 else if(shape==='x'){oc.lineWidth=12;oc.lineCap='round';const a=w*.36;oc.beginPath();oc.moveTo(-a,-a);oc.lineTo(a,a);oc.moveTo(a,-a);oc.lineTo(-a,a);oc.stroke()}
 else{oc.lineWidth=7;oc.lineCap='round';oc.beginPath();const R=Math.min(w,h)/2;for(let a=0;a<14;a+=.2){const q=R*a/14,n=a-t*5*d;oc.lineTo(Math.cos(n)*q,Math.sin(n)*q)}oc.stroke()}
 oc.restore();
-ctx.save();ctx.translate((s==='L'?104:216)+e.ox+S.gx+shx,118+e.oy+S.gy+bob);ctx.rotate(e.rot*Math.PI/180);ctx.shadowColor='rgba('+rgb+',.85)';ctx.shadowBlur=26*k;ctx.drawImage(off,-110,-110,220,220);ctx.restore()}
+ctx.save();ctx.translate((s==='L'?104:216)+e.ox+S.gx+shx,118+e.oy+S.gy+bob);ctx.rotate(e.rot*Math.PI/180);ctx.shadowColor='rgba('+rgb+',.85)';ctx.shadowBlur=P.glow*k;ctx.drawImage(off,-110,-110,220,220);ctx.restore()}
 function star(x,y,r){ctx.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,q=i%2?r*.28:r;ctx.lineTo(x+Math.cos(a)*q,y+Math.sin(a)*q)}ctx.closePath();ctx.fill()}
 function draw(){
 for(const n of['bounce','shake','tear','zzz','sweat','dots','qmark','spark']){FA[n]=(FA[n]||0)+((fx.has(n)?1:0)-(FA[n]||0))*.12}
 let p=be?(t-be.t0)/be.dur:2;if(p>=1){be=null;bl.L=bl.R=0}else{const q=be.hold?(p<.2?p/.2:p>.75?(1-p)/.25:1):(p<.4?p/.4:1-(p-.4)/.6);bl.L=be.L?q:0;bl.R=be.R?q:0}
 const bob=-Math.abs(Math.sin(t*8))*7*FA.bounce+Math.sin(t*1.6)*1.5,shx=Math.sin(t*55)*2.4*FA.shake*(em.jit??1),tm=1+(talkOn?.06*Math.sin(t*13)+.04*Math.sin(t*5.3):0);
-ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#02060a';ctx.fillRect(0,0,cv.width,cv.height);ctx.setTransform(k,0,0,k,OX,OY);
+ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=P.bg;ctx.fillRect(0,0,cv.width,cv.height);ctx.setTransform(k,0,0,k,OX,OY);
 drawEye('L',bob,shx,tm);drawEye('R',bob,shx,tm);
 ctx.setTransform(k,0,0,k,OX,OY);
 if(FA.tear>.02)for(const[x,o]of[[92,0],[228,.35]]){const ph=(t*.7+o)%1;ctx.fillStyle='rgba(140,205,255,'+FA.tear*(1-ph)+')';ctx.beginPath();ctx.ellipse(x,166+ph*55,4,6,0,0,7);ctx.fill()}
@@ -194,7 +205,7 @@ try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models
 const j=await r.json();if(!r.ok)throw new Error((j.error&&j.error.message)||r.status);
 let out=j.candidates[0].content.parts.map(p=>p.text||'').join('').trim();
 hist.push({role:'model',parts:[{text:out}]});
-const m=out.match(/^\s*\[(\w+)\]\s*/);let n='neutro';if(m){if(E[m[1]])n=m[1];out=out.slice(m[0].length)}
+const m=out.match(/\[(\w+)\]/);let n='neutro';if(m&&E[m[1].toLowerCase()])n=m[1].toLowerCase();out=out.replace(/\[\w+\]/g,'').replace(/\s+/g,' ').trim()
 setEmotion(n);st(out);speak(out)}
 catch(e){hist.pop();setEmotion('triste');st('Erro: '+e.message)}}
 $('send').onclick=()=>{const t=$('txt').value;$('txt').value='';ask(t)};
@@ -250,6 +261,27 @@ document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 window.addEventListener('message',e=>{const d=e.data;if(d&&d.emotion)setEmotion(d.emotion);if(d&&d.say)say(d.say)});
 window.drac={setEmotion,say,blink,wink:s=>blink(s||'R',true),lookAt,talk,emotions:Object.keys(E)};
+const SLOTS=3;
+function hex2rgb(h){const n=parseInt(h.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255]}
+function curCfg(){return{c:$('pc').value,s:+$('psz').value,g:+$('pgl').value,b:$('pbg').value}}
+function loadCfg(c){if(!c)return;$('pc').value=c.c;$('psz').value=c.s;$('pgl').value=c.g;$('pbg').value=c.b}
+function applyP(){BASE=hex2rgb($('pc').value);P.size=+$('psz').value;P.glow=+$('pgl').value;P.bg=$('pbg').value;
+$('psv').textContent=P.size.toFixed(2);$('pgv').textContent=P.glow;cv.style.background=P.bg;
+ss('custom',JSON.stringify(curCfg()));setEmotion(cur)}
+['pc','psz','pgl','pbg'].forEach(i=>$(i).addEventListener('input',applyP));
+$('prst').onclick=()=>{loadCfg({c:'#46ebff',s:1,g:26,b:'#02060a'});applyP();st('Visual padrão restaurado.')};
+function getSlots(){try{const a=JSON.parse(gs('slots')||'[]');return[0,1,2].map(i=>(Array.isArray(a)&&a[i])||null)}catch(e){return[null,null,null]}}
+function setSlots(a){ss('slots',JSON.stringify(a))}
+function renderSlots(){const box=$('slots');box.innerHTML='';const sl=getSlots();
+for(let i=0;i<SLOTS;i++){const s=sl[i];
+const b=document.createElement('button');b.textContent=s?'💾 '+s.name:'+ Salvar no slot '+(i+1);
+b.onclick=()=>{if(s){loadCfg(s.cfg);applyP();st('Carregado: '+s.name);return}
+const name=$('sname').value.trim()||('Slot '+(i+1));const arr=getSlots();arr[i]={name,cfg:curCfg()};setSlots(arr);$('sname').value='';renderSlots();st('Salvo: '+name)};
+box.appendChild(b);
+if(s){const d=document.createElement('button');d.textContent='🗑';d.title='Apagar este save';
+d.onclick=()=>{const arr=getSlots();arr[i]=null;setSlots(arr);renderSlots();st('Save apagado.')};box.appendChild(d)}}}
+try{loadCfg(JSON.parse(gs('custom')||'null'))}catch(e){}
+applyP();renderSlots();
 window.addEventListener('resize',resize);resize();setEmotion('neutro');requestAnimationFrame(frame);
 </script>
 </body>
