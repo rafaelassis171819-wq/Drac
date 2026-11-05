@@ -31,6 +31,7 @@ details input[type=range]{padding:0}
 .fb{display:none;position:fixed;z-index:10;width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:22px;transition:opacity .4s}
 .fb.hide{opacity:0;pointer-events:none}
 #fmic{bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;margin-left:-29px}
+#fmic.on{background:rgba(70,235,255,.35);border-color:#46ebff;box-shadow:0 0 14px rgba(70,235,255,.7)}
 #fx{top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:46px;height:46px;font-size:18px}
 #sub{display:none}
 body.fs{overflow:hidden;padding:0;max-width:none;background:#02060a}
@@ -183,7 +184,7 @@ const m=speechSynthesis.getVoices().filter(v=>/^pt/i.test(v.lang)).find(v=>isM(v
 if(m){$('voice').value=m.name;ss('voice',m.name);st('Voz masculina: '+m.name)}else st('Seu aparelho só tem voz neutra ou feminina em português. Ajustei o grave. Para ter mais vozes, instale em Configurações do Android, Texto para fala.');
 speak('Olá, eu sou o Drac.')};
 if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
-function speak(txt){if(!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';const v=speechSynthesis.getVoices().find(x=>x.name===$('voice').value);if(v)u.voice=v;u.pitch=+$('pitch').value;u.rate=+$('rate').value;u.onstart=()=>talk(true,Math.max(2500,txt.length*95));u.onend=u.onerror=()=>talk(false);speechSynthesis.speak(u)}
+function speak(txt){if(!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';const v=speechSynthesis.getVoices().find(x=>x.name===$('voice').value);if(v)u.voice=v;u.pitch=+$('pitch').value;u.rate=+$('rate').value;const id=++spkId;spk=true;u.onstart=()=>talk(true,Math.max(2500,txt.length*95));u.onend=u.onerror=()=>{talk(false);if(id===spkId){spk=false;busy=false;listen()}};speechSynthesis.speak(u)}
 const EM=Object.keys(E).join(', ');
 async function ask(txt,lk){
 if(!txt.trim())return;if(/(deslig|desativ|fech|apag)\w*\s.*(c[âa]mera|olhos)/i.test(txt)){if(stream)camOff();else st('Os olhos já estão desligados.');return}const key=$('key').value.trim();if(!key){st('Cole a chave do Gemini em Configurações.');$('cfg').open=true;return}
@@ -201,11 +202,22 @@ $('txt').addEventListener('keydown',e=>{if(e.key==='Enter')$('send').click()});
 $('vt').onclick=()=>speak('Olá, eu sou o Drac. Essa é a minha voz.');
 $('clr').onclick=()=>{hist=[];st('Conversa limpa.')};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-$('mic').onclick=()=>{if(!SR){st('Sem reconhecimento de voz aqui. Use o Chrome.');return}
-if('speechSynthesis' in window)speechSynthesis.cancel();const rc=new SR();rc.lang='pt-BR';rc.interimResults=false;
-rc.onstart=()=>{setEmotion('ouvindo');st('Ouvindo...')};
-rc.onresult=e=>{const t=e.results[0][0].transcript;st('Você: '+t);ask(t)};
-rc.onerror=e=>{setEmotion('neutro');st('Microfone: '+e.error)};rc.start()};
+let call=false,rc=null,busy=false,spk=false,spkId=0;
+function listen(){if(!call||busy||spk)return;try{rc=new SR()}catch(e){return}rc.lang='pt-BR';rc.interimResults=false;let got=false;
+rc.onstart=()=>{setEmotion('ouvindo');st('Ouvindo... (toque no 🎤 para encerrar)')};
+rc.onresult=e=>{got=true;busy=true;const t=e.results[0][0].transcript;st('Você: '+t);ask(t).then(()=>{if(call&&!spk){busy=false;listen()}})};
+rc.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){endCall();st('Microfone: permissão negada.')}};
+rc.onend=()=>{if(call&&!got&&!busy&&!spk)setTimeout(listen,250)};
+try{rc.start()}catch(e){}}
+function startCall(){if(!SR){st('Sem reconhecimento de voz aqui. Use o Chrome.');return}
+if(!$('key').value.trim()){st('Cole a chave do Gemini em Configurações.');$('cfg').open=true;return}
+call=true;busy=false;spk=false;spkId++;if('speechSynthesis' in window)speechSynthesis.cancel();
+$('mic').classList.add('on');$('fmic').classList.add('on');listen()}
+function endCall(){call=false;busy=false;spk=false;spkId++;try{rc&&rc.abort()}catch(e){}
+if('speechSynthesis' in window)speechSynthesis.cancel();talk(false);
+$('mic').classList.remove('on');$('fmic').classList.remove('on');setEmotion('neutro');st('Chamada encerrada.')}
+$('mic').onclick=()=>{call?endCall():startCall()};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&call)endCall()});
 const LOOK=/olha|olhe|veja|vendo|você vê|voce ve|o que é isso|o que e isso|enxerg/i;let stream=null,camT=0;
 $('camf').value=gs('camf')||'environment';
 function camOff(){if(!stream)return;stream.getTracks().forEach(t=>t.stop());stream=null;$('vid').srcObject=null;$('cam').classList.remove('on');$('camx').classList.add('noc');$('fcamx').classList.add('noc');$('cf').classList.add('noc');st('Olhos desligados.')}
