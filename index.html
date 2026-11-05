@@ -28,11 +28,25 @@ label{display:block;margin-top:10px;font-size:13px;opacity:.85}
 details input,select,textarea{width:100%;box-sizing:border-box;font:inherit;color:var(--fg);padding:8px 10px;border-radius:10px;border:1px solid var(--bd);background:var(--bg)}
 details input[type=range]{padding:0}
 #st{margin-top:10px;min-height:20px;font-size:14px}
+.fb{display:none;position:fixed;z-index:10;width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:22px;transition:opacity .4s}
+.fb.hide{opacity:0;pointer-events:none}
+#fmic{bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;margin-left:-29px}
+#fx{top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:46px;height:46px;font-size:18px}
+#sub{display:none}
+body.fs{overflow:hidden;padding:0;max-width:none;background:#02060a}
+.fs .bezel{position:fixed;inset:0;padding:0;border-radius:0;background:#02060a;box-shadow:none;z-index:5}
+.fs canvas{width:100%;height:100%;aspect-ratio:auto;border-radius:0}
+.fs .row,.fs .say,.fs #st,.fs details{display:none}
+.fs .fb{display:block}
+.fs #sub{display:block;position:fixed;left:0;right:0;bottom:calc(88px + env(safe-area-inset-bottom,0px));text-align:center;color:#bdeeff;padding:0 24px;z-index:9;font-size:15px;pointer-events:none}
+#fcam{bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;margin-left:-104px}
 </style>
 </head>
 <body>
-<div class="bezel"><canvas id="cv"></canvas></div>
-<div class="say"><input id="txt" placeholder="Fale com o Drac"><button id="mic">🎤</button><button id="send">Enviar</button></div>
+<div class="bezel" id="bz"><canvas id="cv"></canvas></div>
+<button class="fb" id="fcam">👁️</button><button class="fb" id="fmic">🎤</button><button class="fb" id="fx">✕</button><div id="sub"></div>
+<video id="vid" playsinline muted style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
+<div class="say"><input id="txt" placeholder="Fale com o Drac"><button id="mic">🎤</button><button id="send">Enviar</button><button id="cam" title="Olhos (câmera)">👁️</button><button id="fsb" title="Tela cheia">⛶</button></div>
 <div id="st">Abra as configurações e cole sua chave do Gemini.</div>
 <details id="cfg"><summary>⚙️ Configurações</summary>
 <label>Chave do Gemini (grátis, fica só neste celular)</label><input id="key" type="password" autocomplete="off" placeholder="Cole a chave aqui">
@@ -42,13 +56,18 @@ details input[type=range]{padding:0}
 <label>Grave/agudo: <span id="pv"></span></label><input id="pitch" type="range" min=".3" max="1.5" step=".05" value=".7">
 <label>Velocidade: <span id="rv"></span></label><input id="rate" type="range" min=".6" max="1.4" step=".05" value=".95">
 <label>Personalidade</label><textarea id="pers" rows="3"></textarea>
+<label>Câmera dos olhos (só envia imagem quando você pedir para ele olhar)</label><select id="camf"><option value="environment">Traseira</option><option value="user">Frontal</option></select>
 <div class="row"><button id="vt">🔊 Testar voz</button><button id="clr">Limpar conversa</button></div>
 </details>
 <details><summary>🎭 Testar emoções</summary><div class="row" id="ctl"></div><div class="row" id="chips"></div></details>
 <script>
 const W=320,H=240,cv=document.getElementById('cv'),ctx=cv.getContext('2d'),off=document.createElement('canvas'),oc=off.getContext('2d');
 let k=1;
-function resize(){const d=Math.min(window.devicePixelRatio||1,3),w=cv.clientWidth;cv.width=Math.round(w*d);cv.height=Math.round(w*d*H/W);k=cv.width/W;off.width=off.height=Math.round(220*k)}
+let OX=0,OY=0;
+function resize(){const d=Math.min(window.devicePixelRatio||1,3);
+if(document.body.classList.contains('fs')){cv.width=Math.round(window.innerWidth*d);cv.height=Math.round(window.innerHeight*d);k=Math.min(cv.width/290,cv.height/170);OX=cv.width/2-160*k;OY=cv.height/2-120*k}
+else{const w=cv.clientWidth;cv.width=Math.round(w*d);cv.height=Math.round(w*d*H/W);k=cv.width/W;OX=OY=0}
+off.width=off.height=Math.round(220*k)}
 const B={w:64,h:74,r:24,ox:0,oy:0,rot:0,top:0,slant:0,bot:0,sc:1},KE=Object.keys(B);
 const CY=[70,235,255],PK=[255,100,150],RD=[255,95,70],BL=[100,175,255],PU=[175,135,255],GN=[110,255,200],GR=[205,210,225];
 const mir=o=>{const r={};for(const q in o)r[q]=(q==='ox'||q==='rot')?-o[q]:o[q];return r};
@@ -121,9 +140,9 @@ function draw(){
 for(const n of['bounce','shake','tear','zzz','sweat','dots','qmark','spark']){FA[n]=(FA[n]||0)+((fx.has(n)?1:0)-(FA[n]||0))*.12}
 let p=be?(t-be.t0)/be.dur:2;if(p>=1){be=null;bl.L=bl.R=0}else{const q=be.hold?(p<.2?p/.2:p>.75?(1-p)/.25:1):(p<.4?p/.4:1-(p-.4)/.6);bl.L=be.L?q:0;bl.R=be.R?q:0}
 const bob=-Math.abs(Math.sin(t*8))*7*FA.bounce+Math.sin(t*1.6)*1.5,shx=Math.sin(t*55)*2.4*FA.shake*(em.jit??1),tm=1+(talkOn?.06*Math.sin(t*13)+.04*Math.sin(t*5.3):0);
-ctx.setTransform(k,0,0,k,0,0);ctx.fillStyle='#02060a';ctx.fillRect(0,0,W,H);
+ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#02060a';ctx.fillRect(0,0,cv.width,cv.height);ctx.setTransform(k,0,0,k,OX,OY);
 drawEye('L',bob,shx,tm);drawEye('R',bob,shx,tm);
-ctx.setTransform(k,0,0,k,0,0);
+ctx.setTransform(k,0,0,k,OX,OY);
 if(FA.tear>.02)for(const[x,o]of[[92,0],[228,.35]]){const ph=(t*.7+o)%1;ctx.fillStyle='rgba(140,205,255,'+FA.tear*(1-ph)+')';ctx.beginPath();ctx.ellipse(x,166+ph*55,4,6,0,0,7);ctx.fill()}
 if(FA.zzz>.02)for(let i=0;i<3;i++){const ph=(t*.35+i/3)%1;ctx.fillStyle='rgba(160,215,255,'+FA.zzz*Math.sin(Math.PI*ph)+')';ctx.font='bold '+(14+ph*14)+'px sans-serif';ctx.fillText('Z',235+ph*30,84-ph*50)}
 if(FA.sweat>.02){ctx.fillStyle='rgba(120,190,255,'+FA.sweat+')';ctx.beginPath();ctx.ellipse(262,60+((t*.5)%1)*20,5,7,0,0,7);ctx.fill()}
@@ -145,7 +164,7 @@ ctl.appendChild(ab);mk('Piscar',()=>blink());mk('Olhar em volta',()=>newGaze());
 const $=i=>document.getElementById(i),gs=k=>{try{return localStorage.getItem('drac_'+k)}catch(e){return null}},ss=(k,v)=>{try{localStorage.setItem('drac_'+k,v)}catch(e){}};
 const DEF='Você é o Drac, um robozinho de mesa simpático, curioso e levemente sarcástico. Fala de forma natural e curta.';
 let hist=[];
-const st=m=>{$('st').textContent=m};
+let subT=0;const st=m=>{$('st').textContent=m;$('sub').textContent=m;clearTimeout(subT);subT=setTimeout(()=>{$('sub').textContent=''},7000)};
 ['key','model','pers','pitch','rate'].forEach(i=>{const v=gs(i);if(v!==null)$(i).value=v;$(i).addEventListener('input',()=>{ss(i,$(i).value);sh()})});
 if(!$('pers').value)$('pers').value=DEF;
 function sh(){$('pv').textContent=$('pitch').value;$('rv').textContent=$('rate').value}sh();
@@ -160,11 +179,11 @@ speak('Olá, eu sou o Drac.')};
 if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
 function speak(txt){if(!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';const v=speechSynthesis.getVoices().find(x=>x.name===$('voice').value);if(v)u.voice=v;u.pitch=+$('pitch').value;u.rate=+$('rate').value;u.onstart=()=>talk(true,Math.max(2500,txt.length*95));u.onend=u.onerror=()=>talk(false);speechSynthesis.speak(u)}
 const EM=Object.keys(E).join(', ');
-async function ask(txt){
+async function ask(txt,lk){
 if(!txt.trim())return;const key=$('key').value.trim();if(!key){st('Cole a chave do Gemini em Configurações.');$('cfg').open=true;return}
-stopAuto();hist.push({role:'user',parts:[{text:txt}]});hist=hist.slice(-12);setEmotion('pensando');st('Pensando...');
-const sys=$('pers').value+' Responda sempre em português do Brasil, em no máximo 2 frases curtas, sem emojis e sem markdown. Comece SEMPRE com uma tag de emoção entre colchetes, escolhida entre: '+EM+'. Exemplo: [feliz] Oi, tudo bem?';
-try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent($('model').value.trim())+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({systemInstruction:{parts:[{text:sys}]},contents:hist,generationConfig:{maxOutputTokens:200}})});
+stopAuto();const img=(stream&&(lk||LOOK.test(txt)))?snap():null;if(img)camTouch();hist.push({role:'user',parts:[{text:txt}]});hist=hist.slice(-12);setEmotion(img?'focado':'pensando');st(img?'Olhando...':'Pensando...');
+const sys=$('pers').value+' Responda sempre em português do Brasil, em no máximo 2 frases curtas, sem emojis e sem markdown. Comece SEMPRE com uma tag de emoção entre colchetes, escolhida entre: '+EM+'. Exemplo: [feliz] Oi, tudo bem?'+(img?' Você está enxergando pela câmera do celular: descreva o que vê de forma curta e natural, como se fossem os seus olhos, e dê dicas se fizer sentido.':'');
+try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent($('model').value.trim())+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({systemInstruction:{parts:[{text:sys}]},contents:hist.map((m,i)=>i===hist.length-1&&img?{role:m.role,parts:[{inline_data:{mime_type:'image/jpeg',data:img}},...m.parts]}:m),generationConfig:{maxOutputTokens:200}})});
 const j=await r.json();if(!r.ok)throw new Error((j.error&&j.error.message)||r.status);
 let out=j.candidates[0].content.parts.map(p=>p.text||'').join('').trim();
 hist.push({role:'model',parts:[{text:out}]});
@@ -181,6 +200,29 @@ if('speechSynthesis' in window)speechSynthesis.cancel();const rc=new SR();rc.lan
 rc.onstart=()=>{setEmotion('ouvindo');st('Ouvindo...')};
 rc.onresult=e=>{const t=e.results[0][0].transcript;st('Você: '+t);ask(t)};
 rc.onerror=e=>{setEmotion('neutro');st('Microfone: '+e.error)};rc.start()};
+const LOOK=/olha|olhe|veja|vendo|você vê|voce ve|o que é isso|o que e isso|enxerg/i;let stream=null,camT=0;
+$('camf').value=gs('camf')||'environment';
+function camOff(){if(!stream)return;stream.getTracks().forEach(t=>t.stop());stream=null;$('vid').srcObject=null;$('cam').classList.remove('on');st('Olhos desligados.')}
+function camTouch(){clearTimeout(camT);camT=setTimeout(camOff,60000)}
+$('camf').onchange=()=>{ss('camf',$('camf').value);camOff()};
+async function camOn(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:$('camf').value,width:{ideal:640}},audio:false});$('vid').srcObject=stream;await $('vid').play();$('cam').classList.add('on');camTouch();return true}catch(e){stream=null;st('Câmera: '+(e.name==='NotAllowedError'?'permissão negada. Libere a câmera nas configurações do site.':e.message));return false}}
+function snap(){const v=$('vid');if(!v.videoWidth)return null;const c=document.createElement('canvas');c.width=Math.min(640,v.videoWidth);c.height=Math.round(c.width*v.videoHeight/v.videoWidth);c.getContext('2d').drawImage(v,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.7).split(',')[1]}
+async function olhar(){if(!stream){if(!await camOn())return;await new Promise(r=>setTimeout(r,800))}const t=$('txt').value.trim();$('txt').value='';ask(t||'O que você está vendo? Comente de forma curta.',true)}
+$('cam').onclick=olhar;$('fcam').onclick=()=>{olhar();showFb()};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)camOff()});
+let fbT=0;
+function showFb(){document.querySelectorAll('.fb').forEach(b=>b.classList.remove('hide'));clearTimeout(fbT);fbT=setTimeout(()=>document.querySelectorAll('.fb').forEach(b=>b.classList.add('hide')),3500)}
+function fsOn(){document.body.classList.add('fs');
+try{const e=document.documentElement,p=(e.requestFullscreen||e.webkitRequestFullscreen).call(e);if(p&&p.catch)p.catch(()=>{})}catch(x){}
+try{screen.orientation.lock('landscape').catch(()=>{})}catch(x){}
+resize();showFb()}
+function fsOff(){document.body.classList.remove('fs');
+try{if(document.fullscreenElement)document.exitFullscreen()}catch(x){}
+try{screen.orientation.unlock()}catch(x){}
+resize()}
+$('fsb').onclick=fsOn;$('fx').onclick=fsOff;$('fmic').onclick=()=>{$('mic').click();showFb()};
+$('bz').addEventListener('click',()=>{if(document.body.classList.contains('fs'))showFb()});
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.body.classList.contains('fs'))fsOff()});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 window.addEventListener('message',e=>{const d=e.data;if(d&&d.emotion)setEmotion(d.emotion);if(d&&d.say)say(d.say)});
 window.drac={setEmotion,say,blink,wink:s=>blink(s||'R',true),lookAt,talk,emotions:Object.keys(E)};
