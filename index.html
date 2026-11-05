@@ -38,6 +38,7 @@ details input[type=range]{padding:0}
 <label>Chave do Gemini (grátis, fica só neste celular)</label><input id="key" type="password" autocomplete="off" placeholder="Cole a chave aqui">
 <label>Modelo</label><input id="model" value="gemini-3.5-flash-lite">
 <label>Voz</label><select id="voice"></select>
+<label>Estilo de voz (opcional, só muda se você escolher)</label><select id="preset"><option value="">Manter meus ajustes</option><option value="jarvis">Jarvis (grave e calmo)</option><option value="grave">Masculina grave</option><option value="normal">Masculina natural</option><option value="narrador">Narrador (lento)</option></select>
 <label>Grave/agudo: <span id="pv"></span></label><input id="pitch" type="range" min=".3" max="1.5" step=".05" value=".7">
 <label>Velocidade: <span id="rv"></span></label><input id="rate" type="range" min=".6" max="1.4" step=".05" value=".95">
 <label>Personalidade</label><textarea id="pers" rows="3"></textarea>
@@ -148,8 +149,14 @@ const st=m=>{$('st').textContent=m};
 ['key','model','pers','pitch','rate'].forEach(i=>{const v=gs(i);if(v!==null)$(i).value=v;$(i).addEventListener('input',()=>{ss(i,$(i).value);sh()})});
 if(!$('pers').value)$('pers').value=DEF;
 function sh(){$('pv').textContent=$('pitch').value;$('rv').textContent=$('rate').value}sh();
-function loadVoices(){const vs=speechSynthesis.getVoices().filter(v=>/^pt/i.test(v.lang)),sel=$('voice');sel.innerHTML='';vs.forEach(v=>{const o=document.createElement('option');o.value=v.name;o.textContent=v.name+' ('+v.lang+')';sel.appendChild(o)});const sv=gs('voice');if(sv)sel.value=sv}
+function loadVoices(){const vs=speechSynthesis.getVoices().filter(v=>/^pt/i.test(v.lang)),sel=$('voice');sel.innerHTML='';vs.forEach(v=>{const o=document.createElement('option');o.value=v.name;o.textContent=(isM(v.name)?'♂ ':'')+v.name+' ('+v.lang+')';sel.appendChild(o)});const sv=gs('voice');if(sv)sel.value=sv}
 $('voice').onchange=()=>ss('voice',$('voice').value);
+const MALE=/antonio|antônio|daniel|felipe|ricardo|luciano|donato|fabio|male|masculin/i,FEM=/female|feminin|francisca|thalita|maria|luciana|vitoria|brenda/i,isM=n=>MALE.test(n)&&!FEM.test(n);
+const PR={jarvis:{p:.55,r:.88},grave:{p:.5,r:1},normal:{p:.85,r:1},narrador:{p:.6,r:.8}};
+$('preset').onchange=()=>{const c=PR[$('preset').value];if(!c)return;$('pitch').value=c.p;$('rate').value=c.r;ss('pitch',c.p);ss('rate',c.r);sh();
+const m=speechSynthesis.getVoices().filter(v=>/^pt/i.test(v.lang)).find(v=>isM(v.name));
+if(m){$('voice').value=m.name;ss('voice',m.name);st('Voz masculina: '+m.name)}else st('Seu aparelho só tem voz neutra ou feminina em português. Ajustei o grave. Para ter mais vozes, instale em Configurações do Android, Texto para fala.');
+speak('Olá, eu sou o Drac.')};
 if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
 function speak(txt){if(!('speechSynthesis' in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='pt-BR';const v=speechSynthesis.getVoices().find(x=>x.name===$('voice').value);if(v)u.voice=v;u.pitch=+$('pitch').value;u.rate=+$('rate').value;u.onstart=()=>talk(true,Math.max(2500,txt.length*95));u.onend=u.onerror=()=>talk(false);speechSynthesis.speak(u)}
 const EM=Object.keys(E).join(', ');
